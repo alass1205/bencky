@@ -1,0 +1,37 @@
+{
+  "alice": {
+    "address": "0x7df9a875a174b3bc565e6424a0050ebc1b2d1d82",
+    "validator": true,
+    "client": "geth",
+    "rpc_port": 8545,
+    "p2p_port": 30303
+  },
+  "bob": {
+    "address": "0xf17f52151ebef6c7334fad080c5704d77216b732",
+    "validator": true,
+    "client": "geth",
+    "rpc_port": 8546,
+    "p2p_port": 30304
+  },
+  "cassandra": {
+    "address": "0xc5aa651be905dda5bd0da5737209d36a5a5f5b0c",
+    "validator": true,
+    "client": "nethermind",
+    "rpc_port": 8547,
+    "p2p_port": 30305
+  },
+  "driss": {
+    "address": "0x821aea9a577a9b44299b9c15c88cf3087f3b5544",
+    "validator": false,
+    "client": "geth",
+    "rpc_port": 8548,
+    "p2p_port": 30306
+  },
+  "elena": {
+    "address": "0x0d1d4e623d10f9fba5db95830f7d3839406c6af2",
+    "validator": false,
+    "client": "nethermind",
+    "rpc_port": 8549,
+    "p2p_port": 30307
+  }
+}
