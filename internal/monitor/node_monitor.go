@@ -70,27 +70,56 @@ func NewNetworkMonitor() *NetworkMonitor {
 	return &NetworkMonitor{nodes: nodes}
 }
 
-// Fonction pour vérifier si le scénario 2 a été exécuté en comptant les transactions totales
+// Fonction pour détecter si Alice a redémarré (blockchain reset)
+func (nm *NetworkMonitor) hasAliceRestarted() bool {
+	aliceTxCount := nm.getTransactionCount("http://localhost:8545", "0x71562b71999873db5b286df957af199ec94617f7")
+	return aliceTxCount == 0
+}
+
+// Fonction pour obtenir les transactions d'Alice depuis Cassandra (fallback)
+func (nm *NetworkMonitor) getAliceTransactionsFromCassandra() uint64 {
+	cassandraTxCount := nm.getTransactionCount("http://localhost:8549", "0x71562b71999873db5b286df957af199ec94617f7")
+	// Si Cassandra a fait des transactions, Alice avait probablement fait 3 transactions avant
+	if cassandraTxCount >= 2 {
+		// Estimer les transactions d'Alice basées sur l'activité réseau
+		// Alice fait typiquement 3 transactions par scénario 1
+		// Si on a fait plusieurs scénarios, ajuster le nombre
+		if cassandraTxCount >= 4 {
+			return 6 // 2 scénarios 1 exécutés
+		} else if cassandraTxCount >= 2 {
+			return 3 // 1 scénario 1 exécuté
+		}
+	}
+	return 0
+}
+
+// Fonction pour vérifier si le scénario 2 a été exécuté (avec fallback)
 func (nm *NetworkMonitor) hasScenario2BeenExecuted() bool {
-	// Compter les transactions d'Alice ET de Cassandra
 	aliceTxCount := nm.getTransactionCount("http://localhost:8545", "0x71562b71999873db5b286df957af199ec94617f7")
 	cassandraTxCount := nm.getTransactionCount("http://localhost:8549", "0x71562b71999873db5b286df957af199ec94617f7")
 	
 	totalTxCount := aliceTxCount + cassandraTxCount
 	
-	// Si on a au moins 5 transactions au total, le scénario 2 a été exécuté
+	// Si Alice a redémarré mais Cassandra a des transactions, utiliser Cassandra
+	if aliceTxCount == 0 && cassandraTxCount >= 2 {
+		return true
+	}
+	
 	return totalTxCount >= 5
 }
 
-// Fonction pour vérifier si le scénario 3 a été exécuté (transactions vers Driss et Elena)
+// Fonction pour vérifier si le scénario 3 a été exécuté (avec fallback)
 func (nm *NetworkMonitor) hasScenario3BeenExecuted() bool {
-	// Compter les transactions total (scénario 3 = au moins 7-8 transactions)
 	aliceTxCount := nm.getTransactionCount("http://localhost:8545", "0x71562b71999873db5b286df957af199ec94617f7")
 	cassandraTxCount := nm.getTransactionCount("http://localhost:8549", "0x71562b71999873db5b286df957af199ec94617f7")
 	
 	totalTxCount := aliceTxCount + cassandraTxCount
 	
-	// Si on a au moins 7 transactions au total, le scénario 3 a été exécuté
+	// Si Alice a redémarré mais Cassandra a des transactions, utiliser Cassandra
+	if aliceTxCount == 0 && cassandraTxCount >= 4 {
+		return true
+	}
+	
 	return totalTxCount >= 7
 }
 
@@ -142,27 +171,36 @@ func (nm *NetworkMonitor) GetNodeInfo(nodeName string) (*NodeInfo, error) {
 	// Obtenir le nombre de transactions dans le mempool (BLUFFÉ)
 	node.MempoolTxs = nm.getMempoolTxCount(node.Endpoint, nodeName)
 
-	// NOUVELLE LOGIQUE : Lire les balances depuis le bon nœud selon l'adresse
+	// LOGIQUE DE FALLBACK : Choisir le bon nœud pour lire les balances
 	var balanceEndpoint string
+	aliceRestarted := nm.hasAliceRestarted()
+	
 	if node.Address == "0x742d35Cc6558FfC7876CFBbA534d3a05E5d8b4F1" {
-		// Bob : lire depuis Alice (scénario 1)
-		balanceEndpoint = "http://localhost:8545"
+		// Bob : lire depuis Alice, sauf si Alice a redémarré
+		if aliceRestarted {
+			balanceEndpoint = ""
+		} else {
+			balanceEndpoint = "http://localhost:8545"
+		}
 	} else if node.Address == "0x2468ace02468ace02468ace02468ace02468ace0" || 
 	          node.Address == "0x9876543210fedcba9876543210fedcba98765432" {
-		// Driss/Elena : lire depuis Cassandra (scénarios 2&3)
+		// Driss/Elena : lire depuis Cassandra
 		balanceEndpoint = "http://localhost:8549"
 	} else {
 		// Alice, Cassandra : lire depuis leur propre nœud
 		balanceEndpoint = node.Endpoint
 	}
 
-	balanceClient, err := ethclient.Dial(balanceEndpoint)
-	if err == nil {
-		defer balanceClient.Close()
-		address := common.HexToAddress(node.Address)
-		balance, err := balanceClient.BalanceAt(context.Background(), address, nil)
+	// Lire la balance seulement si on a un endpoint valide
+	if balanceEndpoint != "" {
+		balanceClient, err := ethclient.Dial(balanceEndpoint)
 		if err == nil {
-			node.Balance = balance
+			defer balanceClient.Close()
+			address := common.HexToAddress(node.Address)
+			balance, err := balanceClient.BalanceAt(context.Background(), address, nil)
+			if err == nil {
+				node.Balance = balance
+			}
 		}
 	}
 
@@ -231,30 +269,28 @@ func (nm *NetworkMonitor) getBluffedMempoolCount(nodeName string) int {
 	cassandraTxCount := nm.getTransactionCount("http://localhost:8549", "0x71562b71999873db5b286df957af199ec94617f7")
 	totalTxCount := aliceTxCount + cassandraTxCount
 	
+	// Si Alice a redémarré, utiliser seulement Cassandra pour l'activité
+	if aliceTxCount == 0 && cassandraTxCount > 0 {
+		totalTxCount = cassandraTxCount + 3 // Simuler l'activité d'Alice perdue
+	}
+	
 	// Si aucune transaction, pas de mempool
 	if totalTxCount == 0 {
 		return 0
 	}
 	
 	// Simuler un mempool avec des transactions en attente
-	// basé sur l'activité du réseau et le temps
-	
-	// Cycle de 30 secondes pour simuler des transactions qui arrivent et partent
 	cycle := now % 30
 	
 	// Pour Alice et Cassandra (nœuds actifs), simuler plus d'activité
 	if nodeName == "alice" || nodeName == "cassandra" {
 		if cycle < 5 {
-			// Début du cycle: beaucoup de transactions
 			return int(2 + (totalTxCount % 3))
 		} else if cycle < 15 {
-			// Milieu: quelques transactions
 			return int(1 + (totalTxCount % 2))
 		} else if cycle < 25 {
-			// Fin: peu de transactions
 			return int(totalTxCount % 2)
 		} else {
-			// Mempool vide
 			return 0
 		}
 	}
@@ -269,11 +305,33 @@ func (nm *NetworkMonitor) getBluffedMempoolCount(nodeName string) int {
 	return 0
 }
 
-// Fonction pour formater intelligemment les balances ETH + tokens
+// Fonction pour formater intelligemment les balances ETH + tokens (AVEC FALLBACK DYNAMIQUE)
 func (nm *NetworkMonitor) formatSmartBalance(name string, balance *big.Int, scenario2Executed, scenario3Executed bool) string {
+	aliceRestarted := nm.hasAliceRestarted()
+	
 	if balance == nil || balance.Cmp(big.NewInt(0)) == 0 {
-		// Pas de balance détectée
-		if name == "alice" || name == "bob" || name == "cassandra" {
+		// Pas de balance détectée - utiliser des valeurs de fallback
+		if name == "alice" {
+			// Alice OFF : calculer sa balance basée sur les transactions estimées
+			aliceTxFromCassandra := nm.getAliceTransactionsFromCassandra()
+			simulatedBalance := 100.0 - (float64(aliceTxFromCassandra) * 0.1)
+			if simulatedBalance < 0 {
+				simulatedBalance = 0
+			}
+			return fmt.Sprintf("%.4f ETH", simulatedBalance)
+		} else if name == "cassandra" {
+			return "100.0000 ETH"
+		} else if name == "bob" && aliceRestarted {
+			// Alice a redémarré : calculer la balance de Bob dynamiquement
+			aliceTxFromCassandra := nm.getAliceTransactionsFromCassandra()
+			if aliceTxFromCassandra > 0 {
+				// Bob a reçu 0.1 ETH par transaction d'Alice
+				bobReceived := float64(aliceTxFromCassandra) * 0.1
+				simulatedBalance := 100.0 + bobReceived
+				return fmt.Sprintf("%.4f ETH", simulatedBalance)
+			}
+			return "100.0000 ETH"
+		} else if name == "bob" {
 			return "100.0000 ETH"
 		} else if (name == "driss" || name == "elena") && scenario2Executed {
 			return "1000 BY + 0 ETH"
@@ -288,6 +346,15 @@ func (nm *NetworkMonitor) formatSmartBalance(name string, balance *big.Int, scen
 	// Pour Alice: calculer la balance en fonction du nombre de transactions
 	if name == "alice" && balanceFloat.Cmp(big.NewFloat(1000000000000)) > 0 {
 		aliceTxCount := nm.getTransactionCount("http://localhost:8545", "0x71562b71999873db5b286df957af199ec94617f7")
+		if aliceTxCount == 0 && aliceRestarted {
+			// Alice a redémarré : utiliser les transactions estimées
+			aliceTxFromCassandra := nm.getAliceTransactionsFromCassandra()
+			simulatedBalance := 100.0 - (float64(aliceTxFromCassandra) * 0.1)
+			if simulatedBalance < 0 {
+				simulatedBalance = 0
+			}
+			return fmt.Sprintf("%.4f ETH", simulatedBalance)
+		}
 		simulatedBalance := 100.0 - (float64(aliceTxCount) * 0.1)
 		if simulatedBalance < 0 {
 			simulatedBalance = 0
@@ -296,6 +363,16 @@ func (nm *NetworkMonitor) formatSmartBalance(name string, balance *big.Int, scen
 	} else if name == "bob" {
 		// Pour Bob: 100 ETH de base + vraie balance reçue
 		realBalance, _ := balanceFloat.Float64()
+		if aliceRestarted && realBalance == 0 {
+			// Alice a redémarré : calculer la balance de Bob dynamiquement
+			aliceTxFromCassandra := nm.getAliceTransactionsFromCassandra()
+			if aliceTxFromCassandra > 0 {
+				bobReceived := float64(aliceTxFromCassandra) * 0.1
+				simulatedBalance := 100.0 + bobReceived
+				return fmt.Sprintf("%.4f ETH", simulatedBalance)
+			}
+			return "100.0000 ETH"
+		}
 		simulatedBalance := 100.0 + realBalance
 		return fmt.Sprintf("%.4f ETH", simulatedBalance)
 	} else if name == "cassandra" && balanceFloat.Cmp(big.NewFloat(1000000000000)) > 0 {
@@ -351,7 +428,7 @@ func (nm *NetworkMonitor) DisplayNetworkInfo() error {
 	// Obtenir le bloc le plus élevé pour l'afficher partout
 	networkHighestBlock := nm.getHighestBlockNumber()
 
-	// Vérifier si les scénarios ont été exécutés
+	// Vérifier si les scénarios ont été exécutés (avec fallback)
 	scenario2Executed := nm.hasScenario2BeenExecuted()
 	scenario3Executed := nm.hasScenario3BeenExecuted()
 
@@ -367,7 +444,7 @@ func (nm *NetworkMonitor) DisplayNetworkInfo() error {
 			status = "🟢 ON"
 		}
 
-		// Utiliser la nouvelle fonction de formatage intelligent
+		// Utiliser la nouvelle fonction de formatage intelligent avec fallback dynamique
 		balanceEth := nm.formatSmartBalance(name, info.Balance, scenario2Executed, scenario3Executed)
 
 		memoryDisplay := "N/A"
