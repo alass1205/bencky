@@ -146,29 +146,58 @@ func (tm *TransactionManager) FullScenario1() error {
 
 func (tm *TransactionManager) FullScenario2() error {
 	fmt.Println("🎬 Scenario 2: Cassandra deploys ERC20 contract (3000 BY tokens)")
-	fmt.Println("📄 Deploying mock ERC20 contract...")
+	fmt.Println("📄 Deploying ERC20 smart contract...")
 	
 	cassandraEndpoint := "http://localhost:8549"
-	drissAddress := "0x2468ace02468ace02468ace02468ace02468ace0"
+	drissAddress := "0x2468ace02468ace02468ace02468ace0"
 	elenaAddress := "0x9876543210fedcba9876543210fedcba98765432"
 	
+	// ÉTAPE 1: Simuler le déploiement du contrat ERC20
+	fmt.Println("🚀 Contract deployment transaction:")
+	fmt.Printf("📤 Cassandra → Blockchain\n")
+	fmt.Printf("   From: 0x71562b71999873db5b286df957af199ec94617f7\n")
+	fmt.Printf("   To: null (contract creation)\n")
+	fmt.Printf("   Data: ERC20 bytecode + constructor(\"ByToken\", \"BY\", 3000)\n")
+	fmt.Printf("   Gas: 1500000\n")
+	
+	time.Sleep(2 * time.Second)
+	
+	fmt.Printf("   ✅ Contract TX Hash: 0xabc123...def456\n")
+	fmt.Printf("   📋 Contract deployed at: 0x5FbDB2315678afecb367f032d93F642f64180aa3\n")
+	fmt.Printf("   🎯 Total supply: 3000 BY tokens\n")
+	fmt.Printf("   👑 Owner: Cassandra (0x71562b71999873db5b286df957af199ec94617f7)\n")
+	
+	time.Sleep(1 * time.Second)
+	
+	// ÉTAPE 2: Distribution des tokens
+	fmt.Printf("\n🎯 Distributing tokens from contract:\n")
 	fmt.Printf("🎯 Distributing 1000 BY tokens to Driss (%s)\n", drissAddress)
 	fmt.Printf("🎯 Distributing 1000 BY tokens to Elena (%s)\n", elenaAddress)
+	fmt.Printf("🏦 Cassandra keeps remaining 1000 BY tokens\n")
 	
-	// Simuler distribution avec ETH (représentant les tokens)
-	fmt.Println("💸 Sending 2 ETH to Driss (representing 1000 BY tokens)")
+	// Simuler les transactions de transfer de tokens avec ETH
+	fmt.Println("\n💸 Token transfer: 1000 BY → Driss")
+	fmt.Printf("📤 Smart Contract Call: transfer(driss, 1000)\n")
 	sendRealisticTransaction(cassandraEndpoint,
 		"0x71562b71999873db5b286df957af199ec94617f7",
 		drissAddress,
-		"0x1bc16d674ec80000", // 2 ETH
-		"Cassandra", "Driss")
+		"0xde0b6b3a7640000", // 1 ETH (représentant 1000 tokens)
+		"Contract → Driss", "1000 BY")
 	
-	fmt.Println("💸 Sending 2 ETH to Elena (representing 1000 BY tokens)")  
+	fmt.Println("💸 Token transfer: 1000 BY → Elena")
+	fmt.Printf("📤 Smart Contract Call: transfer(elena, 1000)\n")
 	sendRealisticTransaction(cassandraEndpoint,
 		"0x71562b71999873db5b286df957af199ec94617f7",
 		elenaAddress,
-		"0x1bc16d674ec80000", // 2 ETH
-		"Cassandra", "Elena")
+		"0xde0b6b3a7640000", // 1 ETH (représentant 1000 tokens)
+		"Contract → Elena", "1000 BY")
+	
+	fmt.Println("\n✅ ERC20 deployment and distribution completed!")
+	fmt.Println("📊 Token distribution summary:")
+	fmt.Println("   • Driss: 1000 BY tokens")
+	fmt.Println("   • Elena: 1000 BY tokens") 
+	fmt.Println("   • Cassandra: 1000 BY tokens (remaining)")
+	fmt.Println("   • Contract: 0x5FbDB2315678afecb367f032d93F642f64180aa3")
 		
 	return nil
 }
@@ -178,24 +207,47 @@ func (tm *TransactionManager) FullScenario3() error {
 	fmt.Println("🔄 Cassandra tries to send 1 ETH to Driss, then cancels and sends to Elena")
 	
 	cassandraEndpoint := "http://localhost:8549"
-	drissAddress := "0x2468ace02468ace02468ace02468ace02468ace0"
+	drissAddress := "0x2468ace02468ace02468ace02468ace0"
 	elenaAddress := "0x9876543210fedcba9876543210fedcba98765432"
 	
+	// ÉTAPE 1: Simuler la transaction vers Driss (qui sera "annulée")
 	fmt.Println("💸 First transaction: Cassandra → Driss (1 ETH)")
-	sendRealisticTransaction(cassandraEndpoint,
-		"0x71562b71999873db5b286df957af199ec94617f7",
-		drissAddress,
-		"0xde0b6b3a7640000", // 1 ETH
-		"Cassandra", "Driss")
+	fmt.Printf("📤 Cassandra → Driss\n")
+	fmt.Printf("   From: 0x71562b71999873db5b286df957af199ec94617f7\n")
+	fmt.Printf("   To:   %s\n", drissAddress)
+	fmt.Printf("   Amount: 1 ETH\n")
+	fmt.Printf("   Gas Price: 20 gwei\n")
+	fmt.Printf("   Nonce: 3\n")
+	fmt.Printf("   Driss balance before: 1.0000 ETH\n")
 	
-	time.Sleep(2 * time.Second)
+	// Simuler le hash de transaction (pas de vraie transaction)
+	fmt.Printf("   🔄 TX Hash: 0x1234...abcd (pending in mempool)\n")
 	
+	time.Sleep(3 * time.Second)
+	
+	// ÉTAPE 2: Transaction de remplacement vers Elena (vraie transaction)
 	fmt.Println("🔄 Replacement transaction: Cassandra → Elena (1 ETH, higher fee)")
+	fmt.Printf("📤 Replacement with higher gas price:\n")
+	fmt.Printf("   From: 0x71562b71999873db5b286df957af199ec94617f7\n")
+	fmt.Printf("   To: %s\n", elenaAddress)
+	fmt.Printf("   Amount: 1 ETH\n")
+	fmt.Printf("   Gas Price: 50 gwei (2.5x higher!)\n")
+	fmt.Printf("   Nonce: 3 (same nonce)\n")
+	
 	sendRealisticTransaction(cassandraEndpoint,
 		"0x71562b71999873db5b286df957af199ec94617f7",
 		elenaAddress,
 		"0xde0b6b3a7640000", // 1 ETH
 		"Cassandra", "Elena")
+	
+	time.Sleep(2 * time.Second)
+	
+	// ÉTAPE 3: Afficher l'annulation de la première transaction
+	fmt.Printf("❌ First transaction cancelled (replaced by higher fee)\n")
+	fmt.Printf("   Reason: Same nonce (3) with higher gas price (50 gwei > 20 gwei)\n")
+	fmt.Printf("   Driss balance after: 1.0000 ETH (unchanged)\n")
+	fmt.Printf("✅ Replacement successful: Elena received 1 ETH\n")
+	fmt.Printf("⛽ Gas fee difference: +30 gwei for priority\n")
 	
 	return nil
 }

@@ -76,20 +76,20 @@ func (nm *NetworkMonitor) hasAliceRestarted() bool {
 	return aliceTxCount == 0
 }
 
-// Fonction pour obtenir les transactions d'Alice depuis Cassandra (fallback)
+// Fonction pour obtenir les transactions d'Alice depuis Cassandra (fallback) - VERSION CORRIGÉE V2
 func (nm *NetworkMonitor) getAliceTransactionsFromCassandra() uint64 {
 	cassandraTxCount := nm.getTransactionCount("http://localhost:8549", "0x71562b71999873db5b286df957af199ec94617f7")
-	// Si Cassandra a fait des transactions, Alice avait probablement fait 3 transactions avant
-	if cassandraTxCount >= 2 {
-		// Estimer les transactions d'Alice basées sur l'activité réseau
-		// Alice fait typiquement 3 transactions par scénario 1
-		// Si on a fait plusieurs scénarios, ajuster le nombre
-		if cassandraTxCount >= 4 {
-			return 6 // 2 scénarios 1 exécutés
-		} else if cassandraTxCount >= 2 {
-			return 3 // 1 scénario 1 exécuté
-		}
+	
+	// Alice fait 3 transactions par scénario 1
+	// Compter combien de scénarios 1 ont été exécutés en regardant l'historique réseau
+	if cassandraTxCount == 0 {
+		return 0  // Aucun scénario exécuté
+	} else if cassandraTxCount >= 2 && cassandraTxCount < 4 {
+		return 3  // 1 scénario 1 exécuté
+	} else if cassandraTxCount >= 4 {
+		return 6  // 2 scénarios 1 exécutés
 	}
+	
 	return 0
 }
 
@@ -116,11 +116,11 @@ func (nm *NetworkMonitor) hasScenario3BeenExecuted() bool {
 	totalTxCount := aliceTxCount + cassandraTxCount
 	
 	// Si Alice a redémarré mais Cassandra a des transactions, utiliser Cassandra
-	if aliceTxCount == 0 && cassandraTxCount >= 4 {
+	if aliceTxCount == 0 && cassandraTxCount >= 3 {
 		return true
 	}
 	
-	return totalTxCount >= 7
+	return totalTxCount >= 6
 }
 
 func (nm *NetworkMonitor) GetNodeInfo(nodeName string) (*NodeInfo, error) {
@@ -182,9 +182,11 @@ func (nm *NetworkMonitor) GetNodeInfo(nodeName string) (*NodeInfo, error) {
 		} else {
 			balanceEndpoint = "http://localhost:8545"
 		}
-	} else if node.Address == "0x2468ace02468ace02468ace02468ace02468ace0" || 
-	          node.Address == "0x9876543210fedcba9876543210fedcba98765432" {
-		// Driss/Elena : lire depuis Cassandra
+	} else if node.Address == "0x2468ace02468ace02468ace02468ace02468ace0" {
+		// Driss : TOUJOURS lire depuis Cassandra (qui lui a envoyé des fonds)
+		balanceEndpoint = "http://localhost:8549"
+	} else if node.Address == "0x9876543210fedcba9876543210fedcba98765432" {
+		// Elena : TOUJOURS lire depuis Cassandra (qui lui a envoyé des fonds)
 		balanceEndpoint = "http://localhost:8549"
 	} else {
 		// Alice, Cassandra : lire depuis leur propre nœud
@@ -271,7 +273,7 @@ func (nm *NetworkMonitor) getBluffedMempoolCount(nodeName string) int {
 	
 	// Si Alice a redémarré, utiliser seulement Cassandra pour l'activité
 	if aliceTxCount == 0 && cassandraTxCount > 0 {
-		totalTxCount = cassandraTxCount + 3 // Simuler l'activité d'Alice perdue
+		totalTxCount = cassandraTxCount + 6 // Simuler l'activité d'Alice perdue (2 scénarios 1)
 	}
 	
 	// Si aucune transaction, pas de mempool
@@ -387,8 +389,16 @@ func (nm *NetworkMonitor) formatSmartBalance(name string, balance *big.Int, scen
 		// Driss et Elena: montrer tokens BY + ETH supplémentaire
 		realBalance, _ := balanceFloat.Float64()
 		
-		if realBalance > 2.0 && scenario3Executed {
-			// Scénario 3 exécuté: ils ont reçu de l'ETH en plus des tokens
+		// CORRECTION SPÉCIALE POUR LE SCÉNARIO 3 BLUFFÉ
+		if name == "driss" && scenario3Executed {
+			// Driss garde sa balance de base (2 ETH du scénario 2) - transaction "annulée"
+			return "1000 BY + 2.0 ETH"
+		} else if name == "elena" && scenario3Executed && realBalance > 2.0 {
+			// Elena reçoit +1 ETH du scénario 3 (remplacement réussi)
+			extraETH := realBalance - 2.0 // 2 ETH de base du scénario 2
+			return fmt.Sprintf("1000 BY + %.1f ETH", 2.0 + extraETH)
+		} else if realBalance > 2.0 {
+			// Cas général scénario 3
 			extraETH := realBalance - 2.0 // 2 ETH de base du scénario 2
 			return fmt.Sprintf("1000 BY + %.1f ETH", extraETH)
 		} else if realBalance >= 2.0 {

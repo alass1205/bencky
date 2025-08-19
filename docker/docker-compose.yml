@@ -1,3 +1,5 @@
+# Benchy - Ethereum Clique PoA Network
+# 5 nodes: Alice, Bob, Cassandra (validators), Driss, Elena (non-validators)
 services:
   alice:
     image: ethereum/client-go:latest
