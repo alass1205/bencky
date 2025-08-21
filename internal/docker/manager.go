@@ -92,20 +92,27 @@ func (dm *DockerManager) StopContainer(containerName string, duration int) error
 		return fmt.Errorf("failed to change to docker directory: %v", err)
 	}
 
+	// Stop container
 	cmd := exec.Command("docker-compose", "stop", containerName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to stop container: %v", err)
 	}
 
-	fmt.Printf("⏳ Waiting %d seconds...\n", duration)
-	time.Sleep(time.Duration(duration) * time.Second)
+	// Countdown visuel avec monitoring en parallèle
+	fmt.Printf("📊 Monitor with 'benchy infos' in another terminal to see %s as 🔴 OFF\n", containerName)
+	for i := duration; i > 0; i-- {
+		fmt.Printf("\r⏳ Restarting in %d seconds...", i)
+		time.Sleep(1 * time.Second)
+	}
+	fmt.Print("\n")
 
+	// Restart container
 	fmt.Printf("🔄 Restarting %s...\n", containerName)
 	cmd = exec.Command("docker-compose", "start", containerName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to restart container: %v", err)
 	}
 
-	fmt.Printf("✅ %s is back online!\n", containerName)
+	fmt.Printf("✅ %s is back online! Run 'benchy infos' to confirm.\n", containerName)
 	return nil
 }

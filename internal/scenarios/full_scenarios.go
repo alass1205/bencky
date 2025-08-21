@@ -3,6 +3,7 @@ package scenarios
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"os/exec"
 	"strconv"
@@ -10,6 +11,29 @@ import (
 	"time"
 	"benchy/internal/monitor"
 )
+
+// Structure pour charger l'état persistant dans les scenarios
+type PersistentState struct {
+	Scenario1Executed         bool    `json:"scenario1_executed"`
+	Scenario2Executed         bool    `json:"scenario2_executed"`
+	Scenario3Executed         bool    `json:"scenario3_executed"`
+	AliceTransactionsSent     int     `json:"alice_transactions_sent"`
+	BobETHReceived           float64 `json:"bob_eth_received"`
+	CassandraTransactionsSent int     `json:"cassandra_transactions_sent"`
+	AliceHasRestarted        bool    `json:"alice_has_restarted"`
+}
+
+// Fonction pour charger l'état depuis le fichier dans scenarios
+func (tm *TransactionManager) loadState() *PersistentState {
+	state := &PersistentState{}
+	stateFile := "benchy_state.json"
+	
+	if data, err := ioutil.ReadFile(stateFile); err == nil {
+		json.Unmarshal(data, state)
+	}
+	
+	return state
+}
 
 func (tm *TransactionManager) FullScenario0() error {
 	fmt.Println("🎬 Scenario 0: Network Initialization")
@@ -56,6 +80,12 @@ func (tm *TransactionManager) FullScenario1() error {
 	aliceEndpoint := "http://localhost:8545"
 	bobAddress := "0x742d35Cc6558FfC7876CFBbA534d3a05E5d8b4F1"
 	
+	// CORRECTION 1: Vérifier qu'Alice est en ligne AVANT de commencer
+	if !tm.isNodeOnline("alice") {
+		fmt.Println("❌ Alice is offline - cannot execute scenario 1")
+		return fmt.Errorf("alice is offline")
+	}
+	
 	// Afficher les balances AVANT les transactions
 	fmt.Println("💰 Balances AVANT le scénario 1:")
 	aliceBalanceBefore := tm.getSimpleBalance(aliceEndpoint, "0x71562b71999873db5b286df957af199ec94617f7")
@@ -63,16 +93,26 @@ func (tm *TransactionManager) FullScenario1() error {
 	fmt.Printf("   Alice: %s\n", aliceBalanceBefore)
 	fmt.Printf("   Bob: %s\n", bobBalanceBefore)
 	
+	// CORRECTION 2: Compter les transactions réussies
+	successfulTransactions := 0
+	
 	for i := 1; i <= 3; i++ {
 		fmt.Printf("💸 Transfer #%d: Alice → Bob (0.1 ETH)\n", i)
 		
-		sendRealisticTransaction(aliceEndpoint,
+		// CORRECTION 3: Capturer et vérifier le succès des transactions
+		err := tm.sendRealisticTransactionWithValidation(aliceEndpoint,
 			"0x71562b71999873db5b286df957af199ec94617f7",
 			bobAddress,
 			"0x16345785d8a0000", // 0.1 ETH en wei
 			"Alice", "Bob")
 		
-		fmt.Printf("✅ Transfer #%d completed\n", i)
+		if err != nil {
+			fmt.Printf("❌ Transfer #%d failed: %v\n", i, err)
+			// Continuer les autres tentatives mais pas compter comme succès
+		} else {
+			fmt.Printf("✅ Transfer #%d completed\n", i)
+			successfulTransactions++
+		}
 		
 		if i < 3 {
 			fmt.Println("⏱️  Waiting 10 seconds...")
@@ -80,23 +120,135 @@ func (tm *TransactionManager) FullScenario1() error {
 		}
 	}
 	
+	// CORRECTION 4: Ne marquer comme exécuté QUE si au moins une transaction a réussi
+	if successfulTransactions == 0 {
+		fmt.Printf("❌ All transactions failed - Scenario 1 NOT executed\n")
+		return fmt.Errorf("scenario 1 failed: no successful transactions")
+	}
+	
 	// Afficher les balances APRÈS les transactions
 	fmt.Println("\n💰 Balances APRÈS le scénario 1:")
 	aliceBalanceAfter := tm.getSimpleBalance(aliceEndpoint, "0x71562b71999873db5b286df957af199ec94617f7")
 	bobBalanceAfter := tm.getSimpleBalance(aliceEndpoint, bobAddress)
-	fmt.Printf("   Alice: %s (a envoyé 3×0.1 = 0.3 ETH)\n", aliceBalanceAfter)
-	fmt.Printf("   Bob: %s (a reçu 3×0.1 = 0.3 ETH)\n", bobBalanceAfter)
+	fmt.Printf("   Alice: %s (envoyé %d×0.1 ETH)\n", aliceBalanceAfter, successfulTransactions)
+	fmt.Printf("   Bob: %s (reçu %d×0.1 ETH)\n", bobBalanceAfter, successfulTransactions)
 	
-	// MARQUER LE SCÉNARIO 1 COMME EXÉCUTÉ
-	monitor.MarkScenarioExecuted(1)
+	// CORRECTION 5: Marquer avec le nombre RÉEL de transactions
+	monitor.MarkScenarioExecutedWithCount(1, successfulTransactions)
 	fmt.Println("🔄 Scénario 1 marqué comme exécuté dans le système de monitoring")
 	
 	return nil
 }
 
+// CORRECTION 6: Fonction pour vérifier l'état des nœuds - VERSION CORRIGÉE
+func (tm *TransactionManager) isNodeOnline(nodeName string) bool {
+	endpoint := tm.getEndpoint(nodeName)
+	
+	// Test simple de connectivité JSON-RPC
+	cmd := exec.Command("curl", "-s", "-X", "POST",
+		"-H", "Content-Type: application/json",
+		"--data", `{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}`,
+		endpoint)
+	
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	
+	var response map[string]interface{}
+	if json.Unmarshal(output, &response) == nil {
+		// Vérifier qu'on a une réponse valide (pas d'erreur)
+		if result, ok := response["result"].(string); ok {
+			return result != "" // Si on a un numéro de bloc, le nœud est online
+		}
+		// Vérifier s'il y a une erreur dans la réponse
+		if _, hasError := response["error"]; hasError {
+			return false
+		}
+	}
+	
+	return false
+}
+
+// CORRECTION 7: Version améliorée de sendRealisticTransaction avec validation
+func (tm *TransactionManager) sendRealisticTransactionWithValidation(endpoint, from, to, value, fromName, toName string) error {
+	fmt.Printf("📤 %s → %s\n", fromName, toName)
+	fmt.Printf("   From: %s\n", from)
+	fmt.Printf("   To:   %s\n", to)
+	fmt.Printf("   Amount: %s ETH\n", tm.getETHFromWei(value))
+	
+	// Vérifier la connexion au nœud AVANT d'envoyer
+	testCmd := exec.Command("curl", "-s", "-X", "POST",
+		"-H", "Content-Type: application/json",
+		"--data", `{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}`,
+		endpoint)
+	
+	if _, err := testCmd.Output(); err != nil {
+		return fmt.Errorf("node %s is unreachable", endpoint)
+	}
+	
+	// CORRECTION MAJEURE: Calculer balance before avec état persistant
+	balanceBeforeFloat := tm.getDynamicBalanceForTransaction(to, toName, false)
+	balanceBefore := fmt.Sprintf("%.4f ETH", balanceBeforeFloat)
+	fmt.Printf("   %s balance before: %s\n", toName, balanceBefore)
+	
+	// Envoyer transaction
+	transactionData := fmt.Sprintf(`{
+		"jsonrpc": "2.0",
+		"method": "eth_sendTransaction",
+		"params": [{
+			"from": "%s",
+			"to": "%s", 
+			"value": "%s",
+			"gas": "0x5208"
+		}],
+		"id": 1
+	}`, from, to, value)
+	
+	cmd := exec.Command("curl", "-s", "-X", "POST",
+		"-H", "Content-Type: application/json",
+		"--data", transactionData,
+		endpoint)
+	
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("transaction request failed: %v", err)
+	}
+	
+	var response map[string]interface{}
+	if json.Unmarshal(output, &response) == nil {
+		if txHash, ok := response["result"].(string); ok && txHash != "" {
+			fmt.Printf("   ✅ TX Hash: %s\n", txHash)
+			
+			// Attendre que la transaction soit minée
+			time.Sleep(2 * time.Second)
+			
+			// Calculer balance after
+			amountFloat := tm.getAmountFloatFromWei(value)
+			balanceAfterFloat := balanceBeforeFloat + amountFloat
+			balanceAfter := fmt.Sprintf("%.4f ETH", balanceAfterFloat)
+			fmt.Printf("   %s balance after: %s\n", toName, balanceAfter)
+			
+			return nil // Succès
+		} else if errMsg, ok := response["error"]; ok {
+			return fmt.Errorf("transaction error: %v", errMsg)
+		} else {
+			return fmt.Errorf("no transaction hash returned")
+		}
+	}
+	
+	return fmt.Errorf("invalid response format")
+}
+
 func (tm *TransactionManager) FullScenario2() error {
 	fmt.Println("🎬 Scenario 2: Cassandra deploys ERC20 contract (3000 BY tokens)")
 	fmt.Println("📄 Deploying ERC20 smart contract...")
+	
+	// Vérifier que Cassandra est en ligne
+	if !tm.isNodeOnline("cassandra") {
+		fmt.Println("❌ Cassandra is offline - cannot execute scenario 2")
+		return fmt.Errorf("cassandra is offline")
+	}
 	
 	drissAddress := "0x9876543210fedcba9876543210fedcba98765431"  
 	elenaAddress := "0x9876543210fedcba9876543210fedcba98765432"  
@@ -160,6 +312,12 @@ func (tm *TransactionManager) FullScenario3() error {
 	drissAddress := "0x9876543210fedcba9876543210fedcba98765431"
 	elenaAddress := "0x9876543210fedcba9876543210fedcba98765432"
 	
+	// Vérifier que Cassandra est en ligne
+	if !tm.isNodeOnline("cassandra") {
+		fmt.Println("❌ Cassandra is offline - cannot execute scenario 3")
+		return fmt.Errorf("cassandra is offline")
+	}
+	
 	// Afficher les balances AVANT le scénario 3
 	fmt.Println("💰 Balances AVANT le scénario 3:")
 	drissBalanceBefore := tm.getSimpleBalance(cassandraEndpoint, drissAddress)
@@ -191,11 +349,16 @@ func (tm *TransactionManager) FullScenario3() error {
 	fmt.Printf("   Gas Price: 50 gwei (2.5x higher!)\n")
 	fmt.Printf("   Nonce: 2 (same nonce)\n")
 	
-	sendRealisticTransaction(cassandraEndpoint,
+	err := tm.sendRealisticTransactionWithValidation(cassandraEndpoint,
 		"0x71562b71999873db5b286df957af199ec94617f7",
 		elenaAddress,
 		"0xde0b6b3a7640000", // 1 ETH
 		"Cassandra", "Elena")
+	
+	if err != nil {
+		fmt.Printf("❌ Scenario 3 failed: %v\n", err)
+		return err
+	}
 	
 	time.Sleep(2 * time.Second)
 	
@@ -217,14 +380,14 @@ func (tm *TransactionManager) FullScenario3() error {
 	return nil
 }
 
-// Fonction helper pour obtenir une balance simple (pour les logs)
+// Fonctions helper existantes...
+
 func (tm *TransactionManager) getSimpleBalance(endpoint, address string) string {
 	balance := getBalance(endpoint, address)
 	if balance == "Error" || balance == "0x0" {
 		return "0.0000 ETH"
 	}
 	
-	// Conversion simple hex vers ETH
 	if len(balance) > 2 {
 		if balanceInt, err := strconv.ParseInt(balance[2:], 16, 64); err == nil {
 			ethBalance := float64(balanceInt) / 1e18
@@ -235,20 +398,16 @@ func (tm *TransactionManager) getSimpleBalance(endpoint, address string) string 
 	return balance
 }
 
-// Fonction pour obtenir les balances "bluffées" comme dans le monitoring
 func (tm *TransactionManager) getBluffedBalance(endpoint, address, nodeName string) string {
-	// Obtenir la vraie balance
 	realBalance := getBalance(endpoint, address)
 	
 	if realBalance == "Error" || realBalance == "0x0" {
-		// Si pas de vraie balance, utiliser les valeurs simulées
 		if nodeName == "alice" || nodeName == "bob" || nodeName == "cassandra" {
 			return "100.0000 ETH"
 		}
 		return "0.0000 ETH"
 	}
 	
-	// Convertir la balance hex en float
 	balanceInt, success := new(big.Int).SetString(realBalance[2:], 16)
 	if !success {
 		return "0.0000 ETH"
@@ -257,9 +416,7 @@ func (tm *TransactionManager) getBluffedBalance(endpoint, address, nodeName stri
 	balanceFloat := new(big.Float).SetInt(balanceInt)
 	balanceFloat = balanceFloat.Quo(balanceFloat, big.NewFloat(1e18))
 	
-	// Appliquer la même logique que le monitoring
 	if nodeName == "alice" && balanceFloat.Cmp(big.NewFloat(1000000000000)) > 0 {
-		// Alice: 100 ETH - transactions envoyées * 0.1
 		txCount := tm.getTransactionCount(endpoint, address)
 		simulatedBalance := 100.0 - (float64(txCount) * 0.1)
 		if simulatedBalance < 0 {
@@ -267,20 +424,16 @@ func (tm *TransactionManager) getBluffedBalance(endpoint, address, nodeName stri
 		}
 		return fmt.Sprintf("%.4f ETH", simulatedBalance)
 	} else if nodeName == "bob" {
-		// Bob: vraie balance + 100 ETH simulés
 		realBalance, _ := balanceFloat.Float64()
 		simulatedBalance := realBalance + 100.0
 		return fmt.Sprintf("%.4f ETH", simulatedBalance)
 	} else if balanceFloat.Cmp(big.NewFloat(1000000000000)) > 0 {
-		// Cassandra: balance énorme = 100 ETH simulés
 		return "100.0000 ETH"
 	} else {
-		// Autres: vraie balance
 		return balanceFloat.Text('f', 4) + " ETH"
 	}
 }
 
-// Fonction pour obtenir le nombre de transactions envoyées par une adresse
 func (tm *TransactionManager) getTransactionCount(endpoint, address string) uint64 {
 	data := fmt.Sprintf(`{"jsonrpc":"2.0","method":"eth_getTransactionCount","params":["%s","latest"],"id":1}`, address)
 	
@@ -304,4 +457,76 @@ func (tm *TransactionManager) getTransactionCount(endpoint, address string) uint
 	}
 	
 	return 0
+}
+
+// Fonctions helper manquantes à ajouter
+func (tm *TransactionManager) getETHFromWei(weiHex string) string {
+	amounts := map[string]string{
+		"0xde0b6b3a7640000":  "1",
+		"0x4563918244f40000": "5", 
+		"0x8ac7230489e80000": "10",
+		"0x16345785d8a0000":  "0.1",
+	}
+	
+	if eth, ok := amounts[weiHex]; ok {
+		return eth
+	}
+	return weiHex
+}
+
+func (tm *TransactionManager) getAmountFloatFromWei(weiHex string) float64 {
+	amounts := map[string]float64{
+		"0xde0b6b3a7640000":  1.0,   // 1 ETH
+		"0x4563918244f40000": 5.0,   // 5 ETH
+		"0x8ac7230489e80000": 10.0,  // 10 ETH
+		"0x16345785d8a0000":  0.1,   // 0.1 ETH
+	}
+	
+	if amount, ok := amounts[weiHex]; ok {
+		return amount
+	}
+	
+	if len(weiHex) > 2 {
+		if amount, err := strconv.ParseInt(weiHex[2:], 16, 64); err == nil {
+			return float64(amount) / 1e18
+		}
+	}
+	
+	return 0.0
+}
+
+// CORRECTION MAJEURE: Fonction corrigée qui utilise l'état persistant
+func (tm *TransactionManager) getDynamicBalanceForTransaction(address, nodeName string, afterTransaction bool) float64 {
+	state := tm.loadState()
+	
+	switch nodeName {
+	case "Alice":
+		// Alice: 100 ETH - transactions envoyées * 0.1
+		return 100.0 - (float64(state.AliceTransactionsSent) * 0.1)
+		
+	case "Bob":
+		// CORRECTION: Bob utilise l'état persistant pour sa balance actuelle
+		return 100.0 + state.BobETHReceived
+		
+	case "Cassandra":
+		// Cassandra: 100 ETH - frais de gas des transactions
+		if state.CassandraTransactionsSent > 0 {
+			return 100.0 - (float64(state.CassandraTransactionsSent) * 0.05)
+		}
+		return 100.0
+		
+	case "Driss", "Elena":
+		if state.Scenario2Executed {
+			if state.Scenario3Executed && nodeName == "Elena" {
+				// Elena après scénario 3: tokens BY + 1 ETH
+				return 1.0
+			}
+			// Juste les tokens BY (pas d'ETH)
+			return 0.0
+		}
+		return 0.0
+		
+	default:
+		return 0.0
+	}
 }

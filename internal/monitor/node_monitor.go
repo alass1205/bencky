@@ -101,6 +101,57 @@ func MarkScenarioExecuted(scenarioNumber int) {
 	fmt.Printf("💾 État sauvegardé dans %s\n", stateFile)
 }
 
+// Fonction CORRIGÉE pour marquer un scénario avec le nombre RÉEL de transactions
+func MarkScenarioExecutedWithCount(scenarioNumber int, actualTransactions int) {
+	state := loadState()
+	
+	switch scenarioNumber {
+	case 1:
+		if !state.Scenario1Executed {
+			state.Scenario1Executed = true
+			fmt.Printf("🆕 Scénario 1 exécuté pour la PREMIÈRE fois\n")
+		} else {
+			fmt.Printf("🔄 Scénario 1 exécuté à NOUVEAU (cumul)\n")
+		}
+		
+		// CORRECTION: Utiliser le nombre RÉEL de transactions réussies
+		state.AliceTransactionsSent += actualTransactions
+		state.BobETHReceived += float64(actualTransactions) * 0.1
+		
+	case 2:
+		if !state.Scenario2Executed {
+			state.Scenario2Executed = true
+			state.Scenario1Executed = true
+			state.CassandraTransactionsSent += 2
+			fmt.Printf("🆕 Scénario 2 exécuté pour la PREMIÈRE fois\n")
+		} else {
+			state.CassandraTransactionsSent += 2
+			fmt.Printf("🔄 Scénario 2 exécuté à NOUVEAU (cumul)\n")
+		}
+		
+	case 3:
+		if !state.Scenario3Executed {
+			state.Scenario3Executed = true
+			state.Scenario2Executed = true
+			state.Scenario1Executed = true
+			state.CassandraTransactionsSent += 1
+			fmt.Printf("🆕 Scénario 3 exécuté pour la PREMIÈRE fois\n")
+		} else {
+			state.CassandraTransactionsSent += 1
+			fmt.Printf("🔄 Scénario 3 exécuté à NOUVEAU (cumul)\n")
+		}
+	}
+	
+	// SAUVEGARDER L'ÉTAT
+	saveState(state)
+	
+	fmt.Printf("🔄 État persistant mis à jour: S1=%v, S2=%v, S3=%v\n", 
+		state.Scenario1Executed, state.Scenario2Executed, state.Scenario3Executed)
+	fmt.Printf("📊 Transactions RÉELLES: Alice_tx=%d, Bob_ETH=%.1f, Cassandra_tx=%d\n", 
+		state.AliceTransactionsSent, state.BobETHReceived, state.CassandraTransactionsSent)
+	fmt.Printf("💾 État sauvegardé dans %s\n", stateFile)
+}
+
 type NodeInfo struct {
 	Name         string
 	Client       string
