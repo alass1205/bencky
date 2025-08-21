@@ -14,7 +14,7 @@ var testAccounts = map[string]string{
 	"Alice_Test":     "0x742d35Cc6558FfC7876CFBbA534d3a05E5d8b4F1", 
 	"Bob_Test":       "0x8ba1f109551bD432803012645Hf20D82DDD618C1",
 	"Cassandra_Test": "0x1a2b3c4d5e6f7890abcdef1234567890abcdef12",
-	"Driss_Test":     "0x2468ace02468ace02468ace02468ace02468ace0",
+	"Driss_Test":     "0x2468ace02468ace02468ace02468ace024684ace00",
 	"Elena_Test":     "0x9876543210fedcba9876543210fedcba98765432",
 }
 
@@ -46,7 +46,7 @@ func RunRealisticDemo() error {
 	fmt.Println("\n💸 Demo 3: Alice → Driss (1 ETH)")
 	sendRealisticTransaction("http://localhost:8545",
 		"0x71562b71999873db5b286df957af199ec94617f7", // Alice dev account
-		"0x2468ace02468ace02468ace02468ace02468ace0", // Driss test account
+		"0x2468ace02468ace02468ace02468ace024684ace00", // Driss test account
 		"0xde0b6b3a7640000", // 1 ETH
 		"Alice", "Driss")
 	
@@ -71,7 +71,7 @@ func CheckDemoBalances() error {
 	accounts := map[string]string{
 		"Bob":       "0x742d35Cc6558FfC7876CFBbA534d3a05E5d8b4F1",
 		"Cassandra": "0x1a2b3c4d5e6f7890abcdef1234567890abcdef12", 
-		"Driss":     "0x2468ace02468ace02468ace02468ace02468ace0",
+		"Driss":     "0x2468ace02468ace02468ace02468ace024684ace00",
 		"Elena":     "0x9876543210fedcba9876543210fedcba98765432",
 	}
 	

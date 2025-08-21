@@ -34,6 +34,20 @@ func NewTransactionManager() *TransactionManager {
 	return &TransactionManager{clients: clients}
 }
 
+// Méthode getEndpoint centralisée (sera utilisée par full_scenarios.go aussi)
+func (tm *TransactionManager) getEndpoint(nodeName string) string {
+	endpoints := map[string]string{
+		"alice":     "http://localhost:8545",
+		"bob":       "http://localhost:8547",
+		"cassandra": "http://localhost:8549",
+		"driss":     "http://localhost:8551",
+		"elena":     "http://localhost:8553",
+	}
+	return endpoints[nodeName]
+}
+
+// MÉTHODES MISES À JOUR POUR CORRESPONDRE AU SYSTÈME CORRIGÉ
+
 func (tm *TransactionManager) Scenario0() error {
 	fmt.Println("🎬 Scenario 0: Initializing network...")
 	fmt.Println("✅ Validators are mining REAL blocks automatically with --dev mode")

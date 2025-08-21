@@ -18,8 +18,8 @@ func NewDockerManager() (*DockerManager, error) {
 	return &DockerManager{composeDir: composeDir}, nil
 }
 
-func (dm *DockerManager) LaunchNetwork() error {
-	fmt.Println("🚀 Launching REAL Ethereum network with Docker...")
+func (dm *DockerManager) CleanNetwork() error {
+	fmt.Println("🧹 Cleaning up existing containers and persistent state...")
 	originalDir, _ := os.Getwd()
 	defer os.Chdir(originalDir)
 	
@@ -27,14 +27,40 @@ func (dm *DockerManager) LaunchNetwork() error {
 		return fmt.Errorf("failed to change to docker directory: %v", err)
 	}
 
-	fmt.Println("🧹 Cleaning up existing containers...")
+	// Nettoyer Docker
 	cmd := exec.Command("docker-compose", "down", "-v")
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Warning: cleanup failed (this is normal if first run): %v\n", err)
 	}
 
+	// Supprimer le fichier d'état
+	stateFile := filepath.Join(originalDir, "benchy_state.json")
+	if err := os.Remove(stateFile); err != nil && !os.IsNotExist(err) {
+		fmt.Printf("Warning: failed to remove state file: %v\n", err)
+	} else if err == nil {
+		fmt.Println("🗑️  Removed persistent state file")
+	}
+
+	return nil
+}
+
+func (dm *DockerManager) LaunchNetwork() error {
+	fmt.Println("🚀 Launching REAL Ethereum network with Docker...")
+	
+	// Nettoyer complètement avant de lancer
+	if err := dm.CleanNetwork(); err != nil {
+		return err
+	}
+	
+	originalDir, _ := os.Getwd()
+	defer os.Chdir(originalDir)
+	
+	if err := os.Chdir(dm.composeDir); err != nil {
+		return fmt.Errorf("failed to change to docker directory: %v", err)
+	}
+
 	fmt.Println("🔄 Starting network containers...")
-	cmd = exec.Command("docker-compose", "up", "-d")
+	cmd := exec.Command("docker-compose", "up", "-d")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	

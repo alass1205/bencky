@@ -34,6 +34,17 @@ var launchCmd = &cobra.Command{
 	},
 }
 
+var cleanCmd = &cobra.Command{
+	Use:   "clean",
+	Short: "Clean Docker containers and persistent state",
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := dockerManager.CleanNetwork(); err != nil {
+			fmt.Printf("❌ Failed to clean: %v\n", err)
+			os.Exit(1)
+		}
+	},
+}
+
 var infosCmd = &cobra.Command{
 	Use:   "infos",
 	Short: "Display information about REAL network nodes",
@@ -129,6 +140,7 @@ func init() {
 	rootCmd.PersistentFlags().IntVarP(&updateInterval, "update", "u", 0, "Update interval in seconds")
 
 	rootCmd.AddCommand(launchCmd)
+	rootCmd.AddCommand(cleanCmd)
 	rootCmd.AddCommand(infosCmd)
 	rootCmd.AddCommand(scenarioCmd)
 	rootCmd.AddCommand(failureCmd)

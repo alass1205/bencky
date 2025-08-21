@@ -1,0 +1,9 @@
+{
+  "scenario1_executed": true,
+  "scenario2_executed": true,
+  "scenario3_executed": true,
+  "alice_transactions_sent": 6,
+  "bob_eth_received": 0.6,
+  "cassandra_transactions_sent": 3,
+  "alice_has_restarted": false
+}
