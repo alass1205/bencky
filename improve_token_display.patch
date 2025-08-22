@@ -1,2 +1,0 @@
-sed -i 's/return "1000 BY + 0 ETH"/return "1000 BY tokens"/g' internal/monitor/node_monitor.go
-sed -i 's/else if realBalance >= 2.0 {/else if realBalance >= 1.0 {/g' internal/monitor/node_monitor.go

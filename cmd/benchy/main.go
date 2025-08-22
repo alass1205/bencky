@@ -19,13 +19,13 @@ var updateInterval int
 
 var rootCmd = &cobra.Command{
 	Use:   "benchy",
-	Short: "Benchy - REAL Ethereum Network Benchmarking Tool",
-	Long:  `A tool to launch, monitor and benchmark REAL Ethereum networks with multiple clients.`,
+	Short: "Benchy - Ethereum Network Benchmarking Tool",
+	Long:  `A tool to launch, monitor and benchmark Ethereum networks with multiple clients.`,
 }
 
 var launchCmd = &cobra.Command{
 	Use:   "launch-network",
-	Short: "Launch the REAL Ethereum network with 5 nodes",
+	Short: "Launch the Ethereum network with 5 nodes",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := dockerManager.LaunchNetwork(); err != nil {
 			fmt.Printf("❌ Failed to launch network: %v\n", err)
@@ -47,7 +47,7 @@ var cleanCmd = &cobra.Command{
 
 var infosCmd = &cobra.Command{
 	Use:   "infos",
-	Short: "Display information about REAL network nodes",
+	Short: "Display information about network nodes",
 	Run: func(cmd *cobra.Command, args []string) {
 		if updateInterval > 0 {
 			if err := networkMonitor.DisplayNetworkInfoContinuous(updateInterval); err != nil {
@@ -65,11 +65,11 @@ var infosCmd = &cobra.Command{
 
 var scenarioCmd = &cobra.Command{
 	Use:   "scenario [number]",
-	Short: "Run predefined scenarios on REAL network",
+	Short: "Run predefined scenarios on network",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		scenario := args[0]
-		fmt.Printf("🎬 Running scenario %s on REAL network...\n", scenario)
+		fmt.Printf("🎬 Running scenario %s on network...\n", scenario)
 		
 		var err error
 		switch scenario {
@@ -105,26 +105,6 @@ var failureCmd = &cobra.Command{
 	},
 }
 
-var demoCmd = &cobra.Command{
-	Use:   "demo",
-	Short: "Run realistic transaction demo",
-	Run: func(cmd *cobra.Command, args []string) {
-		if err := scenarios.RunRealisticDemo(); err != nil {
-			fmt.Printf("❌ Demo failed: %v\n", err)
-		}
-	},
-}
-
-var accountsCmd = &cobra.Command{
-	Use:   "accounts",
-	Short: "Show REAL accounts and balances",
-	Run: func(cmd *cobra.Command, args []string) {
-		if err := scenarios.GetRealAccounts(); err != nil {
-			fmt.Printf("❌ Failed to get accounts: %v\n", err)
-		}
-	},
-}
-
 func init() {
 	var err error
 	
@@ -144,8 +124,6 @@ func init() {
 	rootCmd.AddCommand(infosCmd)
 	rootCmd.AddCommand(scenarioCmd)
 	rootCmd.AddCommand(failureCmd)
-	rootCmd.AddCommand(demoCmd)
-	rootCmd.AddCommand(accountsCmd)
 }
 
 func main() {

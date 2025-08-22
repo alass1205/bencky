@@ -1,3 +1,0 @@
-Alice        Geth        🟢 ON     #0         0.1% 20.72MiB / 15.31GiB 100.0000 ETH       0 txs     
-Bob          Nethermind  🟢 ON     #0         0.0% 23.93MiB / 15.31GiB 100.0000 ETH       0 txs     
-🔗 Consensus: Clique PoA | Network ID: 12345 | Validators: Alice, Bob, Cassandra

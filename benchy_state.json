@@ -2,8 +2,8 @@
   "scenario1_executed": true,
   "scenario2_executed": true,
   "scenario3_executed": true,
-  "alice_transactions_sent": 12,
-  "bob_eth_received": 1.2000000000000002,
+  "alice_transactions_sent": 9,
+  "bob_eth_received": 0.9000000000000001,
   "cassandra_transactions_sent": 3,
   "alice_has_restarted": false
 }

@@ -1,2 +1,0 @@
-# Correction des adresses Ethereum dans full_scenarios.go
-sed -i 's/0x2468ace02468ace02468ace02468ace0/0x2468ace02468ace02468ace02468ace024680000/g' internal/scenarios/full_scenarios.go
