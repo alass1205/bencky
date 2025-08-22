@@ -55,7 +55,8 @@ var infosCmd = &cobra.Command{
 				os.Exit(1)
 			}
 		} else {
-			if err := networkMonitor.DisplayNetworkInfo(); err != nil {
+			// Utiliser la version optimisée
+			if err := networkMonitor.DisplayNetworkInfoFast(); err != nil {
 				fmt.Printf("❌ Failed to get network info: %v\n", err)
 				os.Exit(1)
 			}

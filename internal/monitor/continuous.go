@@ -20,8 +20,8 @@ func (nm *NetworkMonitor) DisplayNetworkInfoContinuous(updateInterval int) error
 		// Display timestamp
 		fmt.Printf("🕐 Last update: %s\n\n", time.Now().Format("15:04:05"))
 		
-		// Display network info
-		if err := nm.DisplayNetworkInfo(); err != nil {
+		// Utiliser la version optimisée pour les mises à jour continues
+		if err := nm.DisplayNetworkInfoFast(); err != nil {
 			return err
 		}
 		

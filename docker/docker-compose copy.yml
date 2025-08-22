@@ -1,0 +1,98 @@
+# Benchy - Ethereum Clique PoA Network
+# 5 nodes: Alice, Bob, Cassandra (validators), Driss, Elena (non-validators)
+services:
+  alice:
+    image: ethereum/client-go:latest
+    container_name: benchy-alice
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+      - "30303:30303"
+    command: >
+      --dev
+      --http
+      --http.addr 0.0.0.0
+      --http.port 8545
+      --http.corsdomain "*"
+      --http.api "eth,net,web3,personal,miner,debug,admin"
+      --ws
+      --ws.addr 0.0.0.0
+      --ws.port 8546
+      --ws.origins "*"
+      --ws.api "eth,net,web3,personal,miner"
+      --verbosity 3
+      --mine
+    networks:
+      - benchy-network
+
+  bob:
+    image: ethereum/client-go:latest
+    container_name: benchy-bob
+    ports:
+      - "8547:8545"
+      - "30304:30303"
+    command: >
+      --dev
+      --http
+      --http.addr 0.0.0.0
+      --http.port 8545
+      --http.corsdomain "*"
+      --http.api "eth,net,web3,personal,miner,debug,admin"
+      --verbosity 3
+    networks:
+      - benchy-network
+
+  cassandra:
+    image: ethereum/client-go:latest
+    container_name: benchy-cassandra
+    ports:
+      - "8549:8545"
+      - "30305:30303"
+    command: >
+      --dev
+      --http
+      --http.addr 0.0.0.0
+      --http.port 8545
+      --http.corsdomain "*"
+      --http.api "eth,net,web3,personal,miner,debug,admin"
+      --verbosity 3
+    networks:
+      - benchy-network
+
+  driss:
+    image: ethereum/client-go:latest
+    container_name: benchy-driss
+    ports:
+      - "8551:8545"
+      - "30306:30303"
+    command: >
+      --dev
+      --http
+      --http.addr 0.0.0.0
+      --http.port 8545
+      --http.corsdomain "*"
+      --http.api "eth,net,web3,personal,miner,debug,admin"
+      --verbosity 3
+    networks:
+      - benchy-network
+
+  elena:
+    image: ethereum/client-go:latest
+    container_name: benchy-elena
+    ports:
+      - "8553:8545"
+      - "30307:30303"
+    command: >
+      --dev
+      --http
+      --http.addr 0.0.0.0
+      --http.port 8545
+      --http.corsdomain "*"
+      --http.api "eth,net,web3,personal,miner,debug"
+      --verbosity 3
+    networks:
+      - benchy-network
+
+networks:
+  benchy-network:
+    driver: bridge
